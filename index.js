@@ -1,7 +1,7 @@
-const path        = require('path');
-const which       = require('which');
-const glob        = require('glob');
-const {Homefront} = require('homefront');
+const path          = require('path');
+const shell         = require('shelljs');
+const glob          = require('glob');
+const { Homefront } = require('homefront');
 
 const constants = Object.freeze({
   STRATEGY_MODULE_NAME : 'module_name',
@@ -68,10 +68,10 @@ class PluginDiscovery {
     let globalPaths = [];
 
     if (discovery.config.fetch('discoverGlobal')) {
-      globalPaths = discovery.getGlobalPath(true);
+      globalPaths = discovery.getGlobalPath();
     }
 
-    discovery.assemblePaths([globalPaths]);
+    discovery.assemblePaths(globalPaths);
 
     let plugins = discovery.globPaths(true);
 
@@ -97,9 +97,9 @@ class PluginDiscovery {
 
   buildPluginDictionary(plugins) {
     plugins.forEach(plugin => {
-      let {root, imported} = this.importPlugin(plugin);
-      let dictionaryKey    = this.getDictionaryKey(plugin, imported);
-      let configure        = this.config.fetch('configure');
+      let { root, imported } = this.importPlugin(plugin);
+      let dictionaryKey      = this.getDictionaryKey(plugin, imported);
+      let configure          = this.config.fetch('configure');
 
       if (typeof configure === 'function') {
         configure(dictionaryKey, imported, root);
@@ -168,7 +168,7 @@ class PluginDiscovery {
       if ((typeof imported !== 'object' || !imported[importNamed]) && !namedFallback) {
         throw new Error(`Plugin '${pluginName}' doesn't export a named property '${importNamed}'.`);
       } else {
-        return {imported: imported[importNamed], root: imported};
+        return { imported: imported[importNamed], root: imported };
       }
     }
 
@@ -177,10 +177,10 @@ class PluginDiscovery {
         throw new Error(`Plugin '${pluginName}' doesn't export a named (fallback) property '${namedFallback}'.`);
       }
 
-      return {imported: imported[namedFallback], root: imported};
+      return { imported: imported[namedFallback], root: imported };
     }
 
-    return {imported, root: imported};
+    return { imported, root: imported };
   }
 
   globPaths(sync) {
@@ -219,34 +219,34 @@ class PluginDiscovery {
     let pattern = this.globPattern();
 
     if (sync) {
-      return glob.sync(pattern, {cwd});
+      return glob.sync(pattern, { cwd });
     }
 
     return new Promise((resolve, reject) => {
-      glob(pattern, {cwd}, (error, files) => {
+      glob(pattern, { cwd }, (error, files) => {
         if (error) {
           return reject(error);
         }
 
         resolve(files);
-      })
+      });
     });
   }
 
-  getGlobalPath(sync) {
-    if (sync) {
-      return path.join(which.sync('npm'), '../../lib/node_modules');
+  getGlobalPath() {
+    const yarnDir = shell.exec('yarn global dir', { silent: true }).stdout.trim();
+    const npmDir  = shell.exec('npm root -g', { silent: true }).stdout.trim();
+    const paths   = [];
+
+    if (yarnDir) {
+      paths.push(yarnDir + '/node_modules');
     }
 
-    return new Promise((resolve, reject) => {
-      which('npm', (error, bin) => {
-        if (error) {
-          return reject(error)
-        }
+    if (npmDir) {
+      paths.push(npmDir);
+    }
 
-        resolve(path.join(bin, '../../lib/node_modules'))
-      })
-    });
+    return paths;
   }
 }
 
